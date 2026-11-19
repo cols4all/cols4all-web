@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>cols4all – Colors for all</title>
+	<meta name="description" content="Color palettes for all people, including those with color vision deficiency.">
+	<link rel="icon" href="img/cols4all_logo.png">
+	<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+	<header class="topbar">
+		<nav class="tabs" role="tablist">
+			<button class="tab active" data-tab="overview">Overview</button>
+			<button class="tab" data-tab="cvd">Color Discrimination</button>
+			<button class="tab" data-tab="hcl">HCL Analysis</button>
+			<button class="tab" data-tab="contrast">Contrast</button>
+			<button class="tab" data-tab="blues">3D Blues</button>
+			<button class="tab" data-tab="naming">Naming</button>
+			<button class="tab" data-tab="app">Application</button>
+		</nav>
+		<label class="dark-toggle"><input type="checkbox" id="dark"> Dark mode</label>
+	</header>
+
+	<main>
+		<section id="tab-overview" class="tab-panel active">
+			<div class="controls">
+				<div class="col col-logo">
+					<img src="img/cols4all_logo.png" alt="cols4all logo" class="logo">
+				</div>
+
+				<div class="col">
+					<fieldset>
+						<legend>Palette type</legend>
+						<div id="type1" class="radios"></div>
+					</fieldset>
+					<div id="type2-wrap" class="field" hidden>
+						<label for="type2" class="label">Subtype</label>
+						<select id="type2"></select>
+					</div>
+					<div id="n-wrap" class="field">
+						<label for="n" class="label">Number of colors <output id="n-out"></output></label>
+						<input type="range" id="n" min="2" max="15" value="7">
+					</div>
+					<div id="biv-wrap" class="field two" hidden>
+						<div>
+							<label for="nbiv" class="label">Columns <output id="nbiv-out"></output></label>
+							<input type="range" id="nbiv" min="2" max="7" value="3">
+						</div>
+						<div>
+							<label for="mbiv" class="label">Rows <output id="mbiv-out"></output></label>
+							<input type="range" id="mbiv" min="2" max="7" value="3">
+						</div>
+					</div>
+					<label class="check" id="continuous-wrap"><input type="checkbox" id="continuous"> Show as continuous palette</label>
+					<label class="check"><input type="checkbox" id="na"> Color for missing values</label>
+
+					<div id="sortcolor-cat" class="field two" hidden>
+						<fieldset>
+							<legend>Sort colors</legend>
+							<div class="radios">
+								<label><input type="radio" name="sortcolor-cat" value="orig" checked> Original</label>
+								<label><input type="radio" name="sortcolor-cat" value="H"> Hue</label>
+								<label><input type="radio" name="sortcolor-cat" value="C"> Chroma</label>
+								<label><input type="radio" name="sortcolor-cat" value="L"> Luminance</label>
+							</div>
+						</fieldset>
+						<div id="hstart-wrap" hidden>
+							<label for="hstart" class="label">Hue start <output id="hstart-out">0</output></label>
+							<input type="range" id="hstart" min="0" max="360" step="10" value="0">
+						</div>
+					</div>
+					<fieldset id="sortcolor-seq" hidden>
+						<legend>Sorting order</legend>
+						<div class="radios">
+							<label><input type="radio" name="sortcolor-seq" value="orig" checked> Original</label>
+							<label><input type="radio" name="sortcolor-seq" value="L"> Light to dark</label>
+						</div>
+					</fieldset>
+
+					<div id="range-wrap" class="range-row" hidden>
+						<fieldset>
+							<legend>Range</legend>
+							<div class="radios">
+								<label><input type="radio" name="auto_range" value="auto" checked> Automatic</label>
+								<label><input type="radio" name="auto_range" value="manual"> Manual</label>
+							</div>
+						</fieldset>
+						<div id="range-manual" hidden>
+							<div class="label">&nbsp;<output id="range-out"></output></div>
+							<div class="dual-range">
+								<input type="range" id="range0" min="0" max="1" step="0.05" value="0" aria-label="Range start">
+								<input type="range" id="range1" min="0" max="1" step="0.05" value="1" aria-label="Range end">
+							</div>
+							<div class="range-info"><span id="range-left">Left</span><span id="range-right">Right</span></div>
+						</div>
+					</div>
+				</div>
+
+				<div class="col">
+					<div class="field">
+						<label for="sort" class="label">Sort palettes</label>
+						<select id="sort"></select>
+					</div>
+					<label class="check"><input type="checkbox" id="sortRev"> Reverse sorting</label>
+					<label class="check"><input type="checkbox" id="include_tritan"> Include tritan in colorblind-friendly filter</label>
+					<fieldset>
+						<legend>Filter</legend>
+						<div id="filters"></div>
+					</fieldset>
+					<fieldset>
+						<legend>Palette series</legend>
+						<div id="series" class="multicol"></div>
+						<div class="buttons">
+							<button id="series-all" type="button">All</button>
+							<button id="series-none" type="button">None</button>
+							<button id="series-overview" type="button">Overview</button>
+						</div>
+					</fieldset>
+				</div>
+
+				<div class="col">
+					<fieldset>
+						<legend>Display temperature (approx.)
+							<button type="button" class="info-btn" data-info="coltemp-info" aria-label="About this simulation" title="About this simulation">&#128214;</button>
+						</legend>
+						<p id="coltemp-info" class="info-box" hidden>Does your palette still work in warm light?
+							Warm light contains less blue, so under lamp or candle light colors are harder to tell apart than in daylight,
+							especially blues and light yellows. Pick a warmer setting and check which colors start to look alike.<br><br>
+							<i>This is an approximation that takes into account that your eyes partly adjust to warm light.
+							Details: <code>?c4a_table</code> in the R package.</i></p>
+						<div id="coltemp" class="radios">
+							<label><input type="radio" name="coltemp" value="6500" checked> 6500 K (standard)</label>
+							<label><input type="radio" name="coltemp" value="4000"> 4000 K</label>
+							<label><input type="radio" name="coltemp" value="2700"> 2700 K</label>
+							<label><input type="radio" name="coltemp" value="2200"> 2200 K (e.g. night mode)</label>
+						</div>
+					</fieldset>
+					<fieldset>
+						<legend>Color vision</legend>
+						<div id="cvd" class="radios">
+							<label><input type="radio" name="cvd" value="none" checked> Normal</label>
+							<label><input type="radio" name="cvd" value="bw"> Black &amp; white</label>
+							<label><input type="radio" name="cvd" value="deutan"> Deutan (red-green blind)</label>
+							<label><input type="radio" name="cvd" value="protan"> Protan (also red-green blind)</label>
+							<label><input type="radio" name="cvd" value="tritan"> Tritan (blue-yellow)</label>
+						</div>
+					</fieldset>
+					<fieldset>
+						<legend>Text</legend>
+						<div id="textformat" class="radios inline">
+							<label><input type="radio" name="textformat" value="none" checked> None</label>
+							<label><input type="radio" name="textformat" value="hex"> Hex</label>
+							<label><input type="radio" name="textformat" value="RGB"> RGB</label>
+							<label><input type="radio" name="textformat" value="HCL"> HCL</label>
+						</div>
+					</fieldset>
+					<fieldset>
+						<legend>Underlying scores</legend>
+						<label class="check"><input type="checkbox" id="advanced"> Show scores</label>
+					</fieldset>
+				</div>
+			</div>
+
+			<div id="table-wrap"></div>
+		</section>
+
+		<section id="tab-cvd" class="tab-panel">
+			<div class="field pal-field">
+				<label class="label" for="cvd-pal">Palette</label>
+				<select id="cvd-pal" class="pal-select"></select>
+			</div>
+			<h4>Color blindness simulation <button type="button" class="ani-btn" data-ani="simu" aria-label="Explanation"></button></h4>
+			<div class="plot-box" id="cvd-strip"></div>
+
+			<div class="cvd-grid cvd-head">
+				<div><h4>Hue lines <button type="button" class="ani-btn" data-ani="hue_lines" aria-label="Explanation"></button></h4></div>
+				<div>
+					<h4>Separability <button type="button" class="ani-btn" data-ani="simi" aria-label="Explanation"></button>
+						<button type="button" class="info-btn" data-info="szafir-info" aria-label="Reference" title="Reference">&#128214;</button>
+					</h4>
+					<p id="szafir-info" class="info-box" hidden>The percentages are the expected share of people that can tell two lines or points of the chosen size apart,
+						according to the model of:<br><br>
+						Szafir, D.A. (2018). Modeling Color Difference for Visualization Design.
+						<i>IEEE Transactions on Visualization and Computer Graphics</i>, 24(1), 392-401.
+						<a href="https://doi.org/10.1109/TVCG.2017.2744359" target="_blank" rel="noopener">doi:10.1109/TVCG.2017.2744359</a></p>
+					<div class="radios inline" id="cvd-mark">
+						<label><input type="radio" name="cvd-mark" value="line" checked> Lines</label>
+						<label><input type="radio" name="cvd-mark" value="point"> Points</label>
+					</div>
+					<div class="field size-field">
+						<label class="label" for="cvd-size">Size <output id="cvd-size-out"></output></label>
+						<input type="range" id="cvd-size">
+					</div>
+					<label class="check"><input type="checkbox" id="cvd-numbers"> Show percentage numbers</label>
+					<p class="hint">Click on a color (row or column) or on a cell to select a pair of colors for the example charts.</p>
+				</div>
+				<div>
+					<h4>Calibration</h4>
+					<div class="field">
+						<label class="label" for="cvd-viewdist">Viewing distance</label>
+						<input type="number" id="cvd-viewdist" min="0" step="any">
+					</div>
+					<div class="field">
+						<label class="label" for="cvd-reflen">Ruler measurement</label>
+						<input type="number" id="cvd-reflen" min="0" step="any">
+					</div>
+					<div class="ref-line"></div>
+					<div class="hint">Measure this line with a ruler (same unit as viewing distance).</div>
+				</div>
+			</div>
+
+			<div id="cvd-rows"></div>
+		</section>
+
+		<section id="tab-hcl" class="tab-panel">
+			<div class="field pal-field">
+				<label class="label" for="hcl-pal">Palette</label>
+				<select id="hcl-pal" class="pal-select"></select>
+			</div>
+			<div class="hcl-row">
+				<div class="hcl-controls">
+					<h4>HCL space</h4>
+					<img src="img/hcl_spacex1.png" srcset="img/hcl_spacex1.png 1x, img/hcl_spacex2.png 2x" alt="Hue, chroma and luminance explained" class="hcl-img">
+					<div class="field">
+						<div class="label">Hue <output id="hcl-H-out"></output></div>
+						<div class="dual-range" data-key="H">
+							<input type="range" min="0" max="360" step="10" value="0" aria-label="Hue minimum">
+							<input type="range" min="0" max="360" step="10" value="360" aria-label="Hue maximum">
+						</div>
+					</div>
+					<div class="field">
+						<div class="label">Chroma <output id="hcl-C-out"></output></div>
+						<div class="dual-range" data-key="C">
+							<input type="range" min="0" max="180" step="10" value="0" aria-label="Chroma minimum">
+							<input type="range" min="0" max="180" step="10" value="180" aria-label="Chroma maximum">
+						</div>
+					</div>
+					<div class="field">
+						<div class="label">Luminance <output id="hcl-L-out"></output></div>
+						<div class="dual-range" data-key="L">
+							<input type="range" min="0" max="100" step="10" value="0" aria-label="Luminance minimum">
+							<input type="range" min="0" max="100" step="10" value="100" aria-label="Luminance maximum">
+						</div>
+					</div>
+					<label class="check"><input type="checkbox" id="hcl-palcols"> Palette colors</label>
+				</div>
+				<div id="hcl-space" class="hcl-space"><p class="placeholder">Loading the 3D plot…</p></div>
+			</div>
+
+			<h4>Hue necklace <button type="button" class="ani-btn" data-ani="hue_neck" aria-label="Explanation"></button></h4>
+			<div class="plot-box small" id="hcl-hues"></div>
+
+			<div class="two-col">
+				<div>
+					<h4>Chroma-Luminance <button type="button" class="ani-btn" data-ani="cl" aria-label="Explanation"></button></h4>
+					<div class="plot-box" id="hcl-cl"></div>
+				</div>
+				<div>
+					<h4>Fairness <button type="button" class="ani-btn" data-ani="fair" aria-label="Explanation"></button></h4>
+					<div class="plot-box" id="hcl-fair"></div>
+				</div>
+			</div>
+		</section>
+
+		<section id="tab-naming" class="tab-panel">
+			<div class="field pal-field">
+				<label class="label" for="naming-pal">Palette</label>
+				<select id="naming-pal" class="pal-select"></select>
+			</div>
+			<h4>Naming table (in development) <button type="button" class="ani-btn" data-ani="naming" aria-label="Explanation"></button></h4>
+			<div class="plot-box wide" id="naming-plot"></div>
+			<div class="field pal-field">
+				<label class="label" for="naming-a">Clarity level <output id="naming-a-out">8</output></label>
+				<input type="range" id="naming-a" min="0.5" max="10" step="0.5" value="8">
+			</div>
+		</section>
+
+		<section id="tab-blues" class="tab-panel">
+			<div class="field pal-field">
+				<label class="label" for="blues-pal">Palette</label>
+				<select id="blues-pal" class="pal-select"></select>
+			</div>
+			<div class="plot-row">
+				<div>
+					<h4>Chromostereopsis <button type="button" class="ani-btn" data-ani="blues" aria-label="Explanation"></button></h4>
+					<canvas id="blues-rings" class="plot-canvas rings"></canvas>
+					<p><a href="https://michaelbach.de/ot/col-chromostereopsis/" target="_blank" rel="noopener"><i>Visual illusion by Michael Bach</i></a></p>
+					<label class="check"><input type="checkbox" id="blues-orig"> Use optical illusion's original colors</label>
+					<label class="check"><input type="checkbox" id="blues-rev"> Reverse colors</label>
+				</div>
+				<div class="blues-side">
+					<div id="blues-letters"></div>
+					<p id="blues-text"></p>
+					<div class="field">
+						<label class="label" for="blues-col1">Color 1</label>
+						<select id="blues-col1"></select>
+					</div>
+					<div class="field">
+						<label class="label" for="blues-col2">Color 2</label>
+						<select id="blues-col2"></select>
+					</div>
+					<div id="blues-letters-ab"></div>
+				</div>
+			</div>
+		</section>
+
+		<section id="tab-contrast" class="tab-panel">
+			<div class="field pal-field">
+				<label class="label" for="contrast-pal">Palette</label>
+				<select id="contrast-pal" class="pal-select"></select>
+			</div>
+
+			<div class="two-col">
+				<div>
+					<h4 id="cr-title">Contrast ratios with white (background)</h4>
+					<div class="plot-box" id="cr-plot"></div>
+				</div>
+				<div>
+					<h4>Options</h4>
+					<label class="check"><input type="checkbox" id="cr-sort"> Sort</label>
+					<label class="check"><input type="checkbox" id="cr-wcag"> Show WCAG criteria</label>
+					<label class="check"><input type="checkbox" id="cr-equi"> Show equiluminant groups</label>
+				</div>
+			</div>
+
+			<div class="two-col">
+				<div>
+					<h4>Contrast ratios between colors <button type="button" class="ani-btn" data-ani="cr" aria-label="Explanation"></button></h4>
+					<p class="hint">Click on a color (row or column) or on a cell to select a pair of colors.</p>
+					<div class="plot-box clickable" id="cr-matrix"></div>
+				</div>
+				<div>
+					<h4>Text readability</h4>
+					<p id="cr-text"></p>
+					<div class="plot-box" id="cr-text-plot"></div>
+				</div>
+			</div>
+
+			<h4>Border lines needed?</h4>
+			<p id="cr-borders"></p>
+			<div class="plot-row">
+				<div class="plot-controls">
+					<fieldset>
+						<legend>Example chart</legend>
+						<div class="radios" id="cr-chart">
+							<label><input type="radio" name="cr-chart" value="Choropleth" checked> Choropleth</label>
+							<label><input type="radio" name="cr-chart" value="Barchart"> Barchart</label>
+						</div>
+					</fieldset>
+					<div class="field">
+						<label class="label" for="cr-border-col">Borders</label>
+						<select id="cr-border-col"><option>black</option><option>white</option></select>
+					</div>
+					<div class="field">
+						<label class="label" for="cr-lwd">Border width <output id="cr-lwd-out">0</output></label>
+						<input type="range" id="cr-lwd" min="0" max="3" step="1" value="0">
+					</div>
+				</div>
+				<div class="plot-box" id="cr-example"></div>
+			</div>
+
+			<h4>Optical Illusion Art</h4>
+			<canvas id="cr-plus" class="plot-canvas"></canvas>
+			<p><i>Plus Reversed</i> by Richard Anuszkiewicz (1960)</p>
+			<label class="check"><input type="checkbox" id="cr-plus-orig"> Use optical illusion's original colors</label>
+		</section>
+
+		<section id="tab-app" class="tab-panel">
+			<div class="well">
+				<div class="field">
+					<label class="label" for="app-pal">Palette</label>
+					<select id="app-pal" class="pal-select"></select>
+				</div>
+				<div class="field">
+					<label class="label" for="app-cvd">Color vision deficiency</label>
+					<select id="app-cvd">
+						<option value="none">Normal</option>
+						<option value="bw">Black &amp; white</option>
+						<option value="deutan">Deutan (red-green blind)</option>
+						<option value="protan">Protan (also red-green blind)</option>
+						<option value="tritan">Tritan (blue-yellow)</option>
+					</select>
+				</div>
+			</div>
+
+			<h4>Points</h4>
+			<div class="plot-row">
+				<div class="plot-box" id="app-dots"></div>
+				<div class="plot-controls">
+					<fieldset>
+						<legend>Color distribution</legend>
+						<div class="radios" id="app-dot-dist">
+							<label><input type="radio" name="app-dot-dist" value="random" checked> Random</label>
+							<label><input type="radio" name="app-dot-dist" value="concentric"> Concentric</label>
+						</div>
+					</fieldset>
+					<div class="field">
+						<label class="label" for="app-dot-size">Size <output id="app-dot-size-out">1</output></label>
+						<input type="range" id="app-dot-size" min="0.5" max="5" step="0.5" value="1">
+					</div>
+					<div class="field">
+						<label class="label" for="app-dot-borders">Borders</label>
+						<select id="app-dot-borders"><option>black</option><option>white</option></select>
+					</div>
+					<div class="field">
+						<label class="label" for="app-dot-lwd">Border width <output id="app-dot-lwd-out">0</output></label>
+						<input type="range" id="app-dot-lwd" min="0" max="3" step="1" value="0">
+					</div>
+				</div>
+			</div>
+
+			<h4>Lines</h4>
+			<div class="plot-row">
+				<div class="plot-box" id="app-lines"></div>
+				<div class="plot-controls">
+					<label class="check"><input type="checkbox" id="app-line-stack"> Stacked</label>
+					<div class="field">
+						<label class="label" for="app-line-lwd">Line width <output id="app-line-lwd-out">3</output></label>
+						<input type="range" id="app-line-lwd" min="1" max="5" step="1" value="3">
+					</div>
+				</div>
+			</div>
+
+			<h4>Polygons</h4>
+			<div class="plot-row">
+				<div class="plot-box" id="app-map"></div>
+				<div class="plot-controls">
+					<fieldset>
+						<legend>Color distribution</legend>
+						<div class="radios" id="app-map-dist">
+							<label><input type="radio" name="app-map-dist" value="random" checked> Random</label>
+							<label><input type="radio" name="app-map-dist" value="gradient"> Gradient</label>
+						</div>
+					</fieldset>
+					<div class="field">
+						<label class="label" for="app-map-borders">Borders</label>
+						<select id="app-map-borders"><option>black</option><option>white</option></select>
+					</div>
+					<div class="field">
+						<label class="label" for="app-map-lwd">Border width <output id="app-map-lwd-out">1</output></label>
+						<input type="range" id="app-map-lwd" min="0" max="3" step="1" value="1">
+					</div>
+				</div>
+			</div>
+
+			<h4>Text</h4>
+			<div class="plot-row">
+				<div class="plot-box">
+					<div id="app-text1"></div>
+					<div id="app-text2"></div>
+				</div>
+				<div class="plot-controls">
+					<div class="field">
+						<label class="label" for="app-txt-size">Font size <output id="app-txt-size-out">12</output></label>
+						<input type="range" id="app-txt-size" min="4" max="72" step="1" value="12">
+					</div>
+					<fieldset>
+						<legend>Font face</legend>
+						<div class="radios" id="app-txt-face">
+							<label><input type="radio" name="app-txt-face" value="plain" checked> Plain</label>
+							<label><input type="radio" name="app-txt-face" value="bold"> Bold</label>
+							<label><input type="radio" name="app-txt-face" value="italic"> Italic</label>
+						</div>
+					</fieldset>
+				</div>
+			</div>
+		</section>
+
+		<section id="tab-placeholder" class="tab-panel">
+			<p class="placeholder">This tab is not available yet in the web version.</p>
+		</section>
+	</main>
+
+	<footer class="footer">
+		<a href="#" id="about-link">About</a> ·
+		<span id="version"></span> ·
+		<a href="https://github.com/cols4all/cols4all-R">R package</a> ·
+		<a href="https://cols4all.github.io/cols4all-R/">documentation</a> ·
+		<a href="https://github.com/cols4all/cols4all-web/issues">feedback</a>
+	</footer>
+</div>
+
+<dialog id="overview-dialog">
+	<form method="dialog"><button class="close" aria-label="Close">×</button></form>
+	<h3>Number of palettes per series (rows) and type (columns)</h3>
+	<div id="overview-table"></div>
+</dialog>
+
+<dialog id="about-dialog">
+	<form method="dialog"><button class="close" aria-label="Close">×</button></form>
+	<h3>cols4all: colors for all</h3>
+	<p>Color palettes for all people, including those with color vision deficiency.
+		Popular color palette series have been organized by type and scored on several properties,
+		such as color-blind-friendliness and fairness (do colors stand out equally?).</p>
+	<p>This website is the web version of <code>c4a_gui()</code> from the R package
+		<a href="https://github.com/cols4all/cols4all-R">cols4all</a>.
+		Everything runs in your browser: the palette scores are taken from the R package, and the plots are recomputed here.
+		Start in the <b>Overview</b> tab to find palettes, and select a palette in the other tabs to analyse it in detail.
+		Click on the <span class="ani-btn" aria-hidden="true">ⓘ</span> buttons for explanations.</p>
+	<p>The palettes can also be used directly in R: <code>install.packages("cols4all")</code>.</p>
+	<h4>How to cite</h4>
+	<p>Tennekes, M. and Puts, M.J.H. (2023). cols4all: a color palette analysis tool. <i>EuroVis 2023 (Short Papers)</i>.
+		<a href="https://doi.org/10.2312/evs.20231040">doi:10.2312/evs.20231040</a></p>
+	<p>Please also cite the authors of the palettes you use: their references can be copied from the Overview table.</p>
+</dialog>
+
+<noscript><p class="placeholder" style="padding: 16px">This website needs JavaScript.</p></noscript>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
