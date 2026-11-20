@@ -1,4 +1,5 @@
-import { prepTable, renderTable, sortChoices } from "./table.js";
+import { prepTable, renderTable, sortChoices, iconFor, ICON_VARS } from "./table.js";
+import { simCVD } from "./colorops.js";
 import { setupApplication, appDefaults } from "./tabs/application.js";
 import { setupContrast, contrastDefaults } from "./tabs/contrast.js";
 import { setupBlues, bluesDefaults } from "./tabs/blues.js";
@@ -56,7 +57,8 @@ const defaults = {
 	series: [...allSeries],
 	textformat: "none",
 	advanced: false,
-	dark: false
+	dark: false,
+	search: ""
 };
 const state = structuredClone(defaults);
 const appState = { ...appDefaults };
@@ -96,7 +98,9 @@ const TAB_SETTINGS = {
 	cvd: [cvdState, cvdDefaults, CVD_KEYS]
 };
 
-function writeURL() {
+// push: add a browser history entry (tab or palette chosen by the user), so
+// that the back button returns to the previous view; otherwise replace it
+function writeURL(push = false) {
 	const p = new URLSearchParams();
 	const t = type12();
 	if (t !== "cat") p.set("type", t);
@@ -118,6 +122,7 @@ function writeURL() {
 	if (state.textformat !== "none") p.set("text", state.textformat);
 	if (state.advanced) p.set("scores", 1);
 	if (state.dark) p.set("dark", 1);
+	if (state.search) p.set("q", state.search);
 	if (tab !== "overview") {
 		p.set("tab", tab);
 		if (sel.name) p.set("pal", sel.name);
@@ -129,7 +134,9 @@ function writeURL() {
 		}
 	}
 	const q = p.toString();
-	history.replaceState(null, "", q ? "?" + q.replace(/%2C/g, ",") : location.pathname);
+	const url = q ? "?" + q.replace(/%2C/g, ",") : location.pathname;
+	if (push && url !== location.search + (location.search ? "" : location.pathname)) history.pushState(null, "", url);
+	else history.replaceState(null, "", url);
 }
 
 let urlPal = null;
@@ -171,6 +178,7 @@ function readURL() {
 	if (["hex", "RGB", "HCL"].includes(p.get("text"))) state.textformat = p.get("text");
 	state.advanced = p.has("scores");
 	state.dark = p.has("dark");
+	state.search = (p.get("q") || "").slice(0, 100);
 	if (TABS.includes(p.get("tab"))) tab = p.get("tab");
 	urlPal = p.get("pal");
 	for (const [st, def, keys] of Object.values(TAB_SETTINGS)) {
@@ -320,7 +328,7 @@ function updateSelection() {
 	});
 }
 
-function selectPalette(name, rerender = true) {
+function selectPalette(name, rerender = true, push = false) {
 	const r = (current || []).find(x => x.f === name);
 	sel.name = r ? r.f : null;
 	// as c4a(pal_name, n, m): default range and color order
@@ -328,10 +336,10 @@ function selectPalette(name, rerender = true) {
 	sel.na = !!r && state.na;
 	sel.type = type12();
 	$$(".pal-select").forEach(s => (s.value = sel.name || ""));
-	if (rerender) { renderTab(); writeURL(); }
+	if (rerender) { renderTab(); writeURL(push); }
 }
 
-$$(".pal-select").forEach(s => s.addEventListener("change", () => selectPalette(s.value)));
+$$(".pal-select").forEach(s => s.addEventListener("change", () => selectPalette(s.value, true, true)));
 
 // ---------- render ----------
 
@@ -353,22 +361,68 @@ async function render() {
 		filters: state.filters,
 		include_tritan: state.include_tritan,
 		show_scores: state.advanced,
-		textformat: state.textformat
+		textformat: state.textformat,
+		search: state.search
 	};
 	const wrap = $("#table-wrap");
 	const p = state.series.length ? prepTable(data, s, meta) : null;
 	if (!state.series.length) {
 		wrap.innerHTML = `<div class="no-palettes"><b>No palette series selected.</b><ul><li>Select one or more palette series.</li></ul></div>`;
 	} else if (!p) {
-		wrap.innerHTML = `<div class="no-palettes"><b>No palettes found. Please change the selection.</b></div>`;
+		wrap.innerHTML = state.search
+			? `<div class="no-palettes"><b>No palettes found matching "${escHTML(state.search)}".</b><ul><li>Check the spelling, or change the palette type or other settings.</li></ul></div>`
+			: `<div class="no-palettes"><b>No palettes found. Please change the selection.</b></div>`;
 	} else {
 		wrap.innerHTML = renderTable(p, s, meta);
 	}
 	current = p ? p.rows : null;
+	lastSettings = s;
 	updateSelection();
+	updateSummary();
 	if (tab !== "overview") renderTab();
 	writeURL();
 }
+
+const escHTML = x => String(x).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+let lastSettings = null; // settings used for the current table
+
+// ---------- settings panel (collapsed on phones) ----------
+
+// Short description of the settings that are hidden when the panel is collapsed
+function updateSummary() {
+	const parts = [];
+	if (state.sort !== "name") parts.push("sorted by " + ($("#sort").selectedOptions[0]?.textContent || state.sort) + (state.sortRev ? ", reversed" : ""));
+	else if (state.sortRev) parts.push("reversed");
+	if (state.filters.length) parts.push(state.filters.length + (state.filters.length === 1 ? " filter" : " filters"));
+	if (state.series.length !== allSeries.length) parts.push(`${state.series.length} of ${allSeries.length} series`);
+	if (state.coltemp !== "6500") parts.push(state.coltemp + " K");
+	if (colorsort() !== "orig") parts.push("colors sorted");
+	if (state.na) parts.push("missing values");
+	if (state.continuous && ["seq", "div", "cyc"].includes(type12())) parts.push("continuous");
+	if (state.textformat !== "none") parts.push(state.textformat + " text");
+	if (state.advanced) parts.push("scores");
+	$("#settings-summary").textContent = parts.join(" · ");
+}
+
+function setSettingsOpen(open) {
+	$("#controls").classList.toggle("collapsed", !open);
+	const b = $("#settings-toggle");
+	b.setAttribute("aria-expanded", open);
+	b.querySelector(".st-label").textContent = open ? "Fewer settings" : "More settings";
+}
+$("#settings-toggle").addEventListener("click", () => {
+	const open = $("#controls").classList.contains("collapsed");
+	setSettingsOpen(open);
+	if (!open) $("#controls").scrollIntoView({ block: "start" });
+});
+
+// ---------- search ----------
+
+let searchTimer;
+$("#search").addEventListener("input", e => {
+	clearTimeout(searchTimer);
+	searchTimer = setTimeout(() => { state.search = e.target.value.trim(); render(); }, 150);
+});
 
 // ---------- tabs ----------
 
@@ -403,16 +457,28 @@ function renderTab() {
 	TAB_MODULES[tab]?.render();
 }
 
-function showTab(name) {
+function showTab(name, push = false) {
 	tab = name;
 	$$(".tab").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+	scrollTabIntoView();
 	const panel = TABS.includes(name) ? "tab-" + name : "tab-placeholder";
 	$$(".tab-panel").forEach(p => p.classList.toggle("active", p.id === panel));
 	renderTab();
-	writeURL();
+	writeURL(push);
 }
 
-$$(".tab").forEach(btn => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
+// keep the active tab visible in the (horizontally scrolling) tab bar on phones
+function scrollTabIntoView() {
+	const nav = $(".tabs"), b = $(".tab.active");
+	if (!b || nav.scrollWidth <= nav.clientWidth) return;
+	const l = b.offsetLeft - nav.offsetLeft, r = l + b.offsetWidth;
+	if (l < nav.scrollLeft) nav.scrollLeft = l - 16;
+	else if (r > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = r - nav.clientWidth + 16;
+}
+
+$$(".tab").forEach(btn => btn.addEventListener("click", () => {
+	if (btn.dataset.tab !== tab) showTab(btn.dataset.tab, true);
+}));
 
 // ---------- events ----------
 
@@ -552,14 +618,10 @@ function toast(msg) {
 	t._timer = setTimeout(() => t.classList.remove("show"), 1500);
 }
 
-$("#table-wrap").addEventListener("click", async e => {
-	const a = e.target.closest("a[data-copy]");
-	if (!a || !current) return;
-	e.preventDefault();
-	const r = current[+a.dataset.i];
+async function copyText(r, what) {
 	const cols = state.na ? [...r.c, r.na] : r.c;
 	let txt;
-	switch (a.dataset.copy) {
+	switch (what) {
 		case "js": txt = "[" + cols.map(c => `"${c}"`).join(", ") + "]"; break;
 		case "r": txt = "c(" + cols.map(c => `"${c}"`).join(", ") + ")"; break;
 		default: {
@@ -573,6 +635,96 @@ $("#table-wrap").addEventListener("click", async e => {
 	} catch {
 		toast("Could not copy to clipboard");
 	}
+}
+
+$("#table-wrap").addEventListener("click", e => {
+	if (!current) return;
+	const a = e.target.closest("a[data-copy]");
+	if (a) {
+		e.preventDefault();
+		copyText(current[+a.dataset.i], a.dataset.copy);
+		return;
+	}
+	const tr = e.target.closest("tbody tr[data-i]");
+	// (not when the user is selecting text, e.g. a hex code)
+	if (tr && !window.getSelection().toString()) showDetail(+tr.dataset.i);
+});
+
+// ---------- palette details ----------
+
+const ANALYSIS_TABS = [["cvd", "Color Discrimination"], ["hcl", "HCL Analysis"], ["contrast", "Contrast"],
+	["blues", "3D Blues"], ["naming", "Naming"], ["app", "Application"]];
+
+function showDetail(i) {
+	const r = current[i];
+	if (!r) return;
+	const s = lastSettings;
+	const cols = state.na ? [...r.c, r.na] : [...r.c];
+	const shown = simCVD(cols, s.cvd, s.coltemp);
+	const swatches = cols.map((c, j) => `<div class="pd-sw"><span style="background:${shown[j]}"></span>` +
+		`<code>${escHTML(c)}</code>${state.na && j === cols.length - 1 ? "<small>missing</small>" : ""}</div>`).join("");
+	const items = detailScores(r, type12());
+	const simulated = s.cvd !== "none" || s.coltemp !== "6500";
+	$("#pal-detail").innerHTML = `
+		<h3 id="pal-title"><span class="pd-series">${escHTML(r.series)}</span> ${escHTML(r.name)}</h3>
+		<p class="pd-desc">${escHTML(meta.series[r.series] || "")}</p>
+		<div class="pd-swatches">${swatches}</div>
+		${simulated ? `<p class="hint">Colors are simulated (Color vision / Display temperature settings); the hex codes are the original colors.</p>` : ""}
+		<h4>Analyze this palette</h4>
+		<div class="pd-buttons">${ANALYSIS_TABS.map(([t, l]) => `<button type="button" data-tab="${t}">${l}</button>`).join("")}</div>
+		<h4>Copy</h4>
+		<div class="pd-buttons">
+			<button type="button" data-copy="js" title='["#111111", "#222222"]'>Colors (JS / Python)</button>
+			<button type="button" data-copy="r" title='c("#111111", "#222222")'>Colors (R)</button>
+			<button type="button" data-copy="cit">Reference (APA)</button>
+			<button type="button" data-copy="bib">BibTeX</button>
+		</div>
+		${items.length ? `<h4>Scores</h4><ul class="pd-scores">${items.join("")}</ul>` : ""}`;
+	const dlg = $("#pal-dialog");
+	dlg.dataset.i = i;
+	dlg.showModal();
+	dlg.scrollTop = 0;
+}
+
+// Score icons of a palette (those shown in the table), with their explanations (the table's tooltips)
+function detailScores(r, type) {
+	const shownCols = new Set($$("#table-wrap thead tr:last-child th.sc").map(th => th.dataset.q));
+	const out = [];
+	for (const q of ICON_VARS) {
+		if (!shownCols.has(q)) continue;
+		const ic = iconFor(meta, type, q, r[q]);
+		if (!ic) continue;
+		const label = (meta.labels[q] || q).replace(/&nbsp;/g, " ");
+		out.push(`<li><span class="pd-icon"><span style="${escHTML(ic.css || "")}">${ic.html}</span></span>` +
+			`<span><b>${escHTML(label)}</b>${ic.tooltip ? ": " + escHTML(ic.tooltip) : ""}</span></li>`);
+	}
+	return out;
+}
+
+$("#pal-dialog").addEventListener("click", e => {
+	const dlg = $("#pal-dialog");
+	if (e.target === dlg) { dlg.close(); return; } // click on the backdrop
+	const r = current?.[+dlg.dataset.i];
+	const b = e.target.closest("button[data-copy], button[data-tab]");
+	if (!b || !r) return;
+	if (b.dataset.copy) { copyText(r, b.dataset.copy); return; }
+	dlg.close();
+	selectPalette(r.f, false);
+	showTab(b.dataset.tab, true);
+	window.scrollTo({ top: 0 });
+});
+
+// ---------- back / forward buttons ----------
+
+window.addEventListener("popstate", async () => {
+	Object.assign(state, structuredClone(defaults));
+	for (const [st, def] of Object.values(TAB_SETTINGS)) Object.assign(st, def);
+	tab = "overview";
+	readURL();
+	restoreUI();
+	await updateSliders(true);
+	showTab(tab);
+	await render();
 });
 
 $("#about-link").addEventListener("click", e => { e.preventDefault(); $("#about-dialog").showModal(); });
@@ -585,12 +737,19 @@ $("#type2").innerHTML = Object.entries(meta.types2.biv).map(([l, v]) => `<option
 $("#series").innerHTML = allSeries.map(s =>
 	`<label class="check" title="${meta.series[s]}"><input type="checkbox" value="${s}" checked> ${s}</label>`).join("");
 
+// state -> all controls (initial load and back/forward)
+function restoreUI() {
+	syncControls();
+	Object.values(TAB_MODULES).forEach(m => m.sync());
+	syncVisibility();
+	buildFilters();
+	buildSort();
+	$("#search").value = state.search;
+	$("#pal-dialog").open && $("#pal-dialog").close();
+}
+
 readURL();
-syncControls();
-Object.values(TAB_MODULES).forEach(m => m.sync());
-syncVisibility();
-buildFilters();
-buildSort();
+restoreUI();
 await updateSliders(true);
 showTab(tab);
 await render();

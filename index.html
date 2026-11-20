@@ -13,37 +13,37 @@
 	<header class="topbar">
 		<nav class="tabs" role="tablist">
 			<button class="tab active" data-tab="overview">Overview</button>
-			<button class="tab" data-tab="cvd">Color Discrimination</button>
-			<button class="tab" data-tab="hcl">HCL Analysis</button>
+			<button class="tab" data-tab="cvd"><span class="long">Color Discrimination</span><span class="short">Discrimination</span></button>
+			<button class="tab" data-tab="hcl"><span class="long">HCL Analysis</span><span class="short">HCL</span></button>
 			<button class="tab" data-tab="contrast">Contrast</button>
 			<button class="tab" data-tab="blues">3D Blues</button>
 			<button class="tab" data-tab="naming">Naming</button>
 			<button class="tab" data-tab="app">Application</button>
 		</nav>
-		<label class="dark-toggle"><input type="checkbox" id="dark"> Dark mode</label>
+		<label class="dark-toggle" title="Dark mode"><input type="checkbox" id="dark"> <span class="long">Dark mode</span><span class="short">Dark</span></label>
 	</header>
 
 	<main>
 		<section id="tab-overview" class="tab-panel active">
-			<div class="controls">
+			<div class="controls collapsed" id="controls">
 				<div class="col col-logo">
 					<img src="img/cols4all_logo.png" srcset="img/cols4all_logo.png 1x, img/cols4all_logo_2x.png 2x" width="240" height="276" alt="cols4all logo" class="logo">
 				</div>
 
 				<div class="col">
-					<fieldset>
+					<fieldset class="key">
 						<legend>Palette type</legend>
 						<div id="type1" class="radios"></div>
 					</fieldset>
-					<div id="type2-wrap" class="field" hidden>
+					<div id="type2-wrap" class="field key" hidden>
 						<label for="type2" class="label">Subtype</label>
 						<select id="type2"></select>
 					</div>
-					<div id="n-wrap" class="field">
+					<div id="n-wrap" class="field key">
 						<label for="n" class="label">Number of colors <output id="n-out"></output></label>
 						<input type="range" id="n" min="2" max="15" value="7">
 					</div>
-					<div id="biv-wrap" class="field two" hidden>
+					<div id="biv-wrap" class="field two key" hidden>
 						<div>
 							<label for="nbiv" class="label">Columns <output id="nbiv-out"></output></label>
 							<input type="range" id="nbiv" min="2" max="7" value="3">
@@ -138,7 +138,7 @@
 							<label><input type="radio" name="coltemp" value="2200"> 2200 K (e.g. night mode)</label>
 						</div>
 					</fieldset>
-					<fieldset>
+					<fieldset class="key">
 						<legend>Color vision</legend>
 						<div id="cvd" class="radios">
 							<label><input type="radio" name="cvd" value="none" checked> Normal</label>
@@ -162,6 +162,15 @@
 						<label class="check"><input type="checkbox" id="advanced"> Show scores</label>
 					</fieldset>
 				</div>
+			</div>
+
+			<button type="button" id="settings-toggle" class="settings-toggle" aria-controls="controls" aria-expanded="false">
+				<span class="st-label">More settings</span> <span id="settings-summary" class="st-summary"></span>
+			</button>
+
+			<div class="table-tools">
+				<input type="search" id="search" placeholder="Search palette names" aria-label="Search palette names" autocomplete="off" spellcheck="false">
+				<span class="hint"><span class="long">Click a palette for details and analysis</span><span class="short">Tap a palette for details</span></span>
 			</div>
 
 			<div id="table-wrap"></div>
@@ -487,6 +496,11 @@
 	<form method="dialog"><button class="close" aria-label="Close">×</button></form>
 	<h3>Number of palettes per series (rows) and type (columns)</h3>
 	<div id="overview-table"></div>
+</dialog>
+
+<dialog id="pal-dialog" class="pal-dialog" aria-labelledby="pal-title">
+	<form method="dialog"><button class="close" aria-label="Close">×</button></form>
+	<div id="pal-detail"></div>
 </dialog>
 
 <dialog id="about-dialog">

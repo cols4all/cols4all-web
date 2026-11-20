@@ -117,12 +117,15 @@ export function prepTable(data, s, meta) {
 	const pals = data.palettes;
 	const series = new Set(s.series);
 	const nOnly = s.filters.includes("nmax");
+	// search: all words must occur in "series.name" (case-insensitive)
+	const words = (s.search || "").toLowerCase().split(/\s+/).filter(Boolean);
 	const filters = s.filters.filter(f => f !== "nmax");
 
 	rows = rows.filter(r => {
 		const p = pals[r.f];
 		if (!series.has(p.series)) return false;
 		if (nOnly && p.nmax !== s.n) return false;
+		if (words.length && !words.every(w => r.f.toLowerCase().includes(w))) return false;
 		return passFilters(r, filters, s.include_tritan);
 	}).map(r => {
 		const p = pals[r.f];
@@ -160,11 +163,11 @@ export function prepTable(data, s, meta) {
 }
 
 // Icon columns: variable -> key in meta.icons
-const ICON_VARS = ["cbfriendly", "cbf_none", "cbf_deutan", "cbf_protan", "cbf_tritan", "chroma", "hues", "fair",
+export const ICON_VARS = ["cbfriendly", "cbf_none", "cbf_deutan", "cbf_protan", "cbf_tritan", "chroma", "hues", "fair",
 	"nameable", "equiluminance", "contrastWT", "contrastBK", "float"];
 const BIG_ICONS = ["cbfriendly", "cbf_none", "cbf_deutan", "cbf_protan", "cbf_tritan", "chroma", "fair"];
 
-function iconFor(meta, type, v, value) {
+export function iconFor(meta, type, v, value) {
 	let set = meta.icons[v.startsWith("cbf_") ? "cbf_cvd" : v];
 	if (!set) return null;
 	if (["seq", "cat", "div", "cyc"].some(t => t in set)) set = set[type] || set.x;
@@ -178,12 +181,14 @@ function iconFor(meta, type, v, value) {
 
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-function headerCell(meta, key, fallback) {
+function headerCell(meta, key, fallback, cls = "") {
+	const c = cls ? ` class="${cls}"` : "";
+	const dq = cls === "sc" ? ` data-q="${key}"` : "";
 	const h = meta.headers[key];
-	if (!h) return `<th>${fallback ?? ""}</th>`;
+	if (!h) return `<th${c}${dq}>${fallback ?? ""}</th>`;
 	const style = h.css ? ` style="${esc(h.css)}"` : "";
 	const title = h.tooltip ? ` title="${esc(h.tooltip)}"` : "";
-	return `<th${title}${style}>${h.html.replace(/\n/g, "<br>")}</th>`;
+	return `<th${c}${dq}${title}${style}>${h.html.replace(/\n/g, "<br>")}</th>`;
 }
 
 // Group header spans above the score columns (see plot_table())
@@ -243,12 +248,12 @@ export function renderTable(p, s, meta) {
 	if (totalCols > pos) g += `<th colspan="${totalCols - pos}" class="blank"></th>`;
 	g += "</tr>";
 
-	let h = "<tr>" + headerCell(meta, "series") + headerCell(meta, "name");
-	for (const q of qn) h += headerCell(meta, q, (meta.labels[q] || q).replace(/&nbsp;/g, ""));
+	let h = "<tr>" + headerCell(meta, "series", "", "series") + headerCell(meta, "name", "", "name");
+	for (const q of qn) h += headerCell(meta, q, (meta.labels[q] || q).replace(/&nbsp;/g, ""), "sc");
 	if (continuous) h += `<th></th>`;
 	else for (let i = 1; i <= columns; i++) h += `<th class="colnum">${i}</th>`;
 	if (s.na) h += `<th class="spacer"></th><th class="colnum">Missings</th>`;
-	h += `<th colspan="4" title="${esc(meta.headers.references?.tooltip || "")}">References</th></tr>`;
+	h += `<th colspan="4" class="copy" title="${esc(meta.headers.references?.tooltip || "")}">References</th></tr>`;
 
 	// Body
 	let b = "";
@@ -259,22 +264,22 @@ export function renderTable(p, s, meta) {
 		const paddedShown = shown.concat(Array(Math.max(0, tot - r.c.length)).fill(""));
 		for (let line = 0; line < nlines; line++) {
 			const first = line === 0, last = line === nlines - 1;
-			b += `<tr class="${first ? "first" : "cont"}${last ? " last" : ""}">`;
+			b += `<tr class="${first ? "first" : "cont"}${last ? " last" : ""}" data-i="${i}">`;
 			if (first) {
 				const des = meta.series[r.series] || "";
-				b += `<td class="series" title="${esc(des)}">${esc(r.series)}</td><td class="name">${esc(r.name)}</td>`;
+				b += `<td class="series" title="${esc(des)}">${esc(r.series)}</td><td class="name"><span class="mser">${esc(r.series)}</span>${esc(r.name)}</td>`;
 				for (const q of qn) {
 					if (ICON_VARS.includes(q)) {
 						const ic = iconFor(meta, type, q, r[q]);
-						const cls = BIG_ICONS.includes(q) ? "icon big" : "icon";
+						const cls = BIG_ICONS.includes(q) ? "sc icon big" : "sc icon";
 						b += ic ? `<td class="${cls}" title="${esc(ic.tooltip || "")}"><span style="${esc(ic.css || "")}">${ic.html}</span></td>` : `<td class="${cls}"></td>`;
 					} else {
 						const v = r[q];
-						b += `<td class="num">${v === null || v === undefined ? "" : esc(v)}</td>`;
+						b += `<td class="sc num">${v === null || v === undefined ? "" : esc(v)}</td>`;
 					}
 				}
 			} else {
-				b += `<td></td><td></td>` + qn.map(() => "<td></td>").join("");
+				b += `<td class="series"></td><td class="name"></td>` + qn.map(() => `<td class="sc"></td>`).join("");
 			}
 			if (continuous) b += gradientCell(shown);
 			else for (let j = 0; j < columns; j++) b += colorCell(padded[line * columns + j], paddedShown[line * columns + j]);
@@ -285,7 +290,7 @@ export function renderTable(p, s, meta) {
 					+ `<td class="copy"><a href="#" data-copy="js" data-i="${i}" title='Copy colors to standard format (e.g. used by JavaScript and Python): ["#111111", "#222222"]'>JS</a></td>`
 					+ `<td class="copy"><a href="#" data-copy="r" data-i="${i}" title='Copy colors to R: c("#111111", "#222222")'>R</a></td>`;
 			} else {
-				b += "<td></td><td></td><td></td><td></td>";
+				b += `<td class="copy"></td>`.repeat(4);
 			}
 			b += "</tr>";
 		}

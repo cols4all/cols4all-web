@@ -95,7 +95,7 @@ html, body {
 }
 @media (max-width: 600px) {
 	.controls { column-count: 1; }
-	.logo { max-width: 160px; }
+	.logo { max-width: 120px; }
 }
 
 label.check.tritan { margin-top: 6px; }
@@ -372,3 +372,95 @@ input[type="number"] { font: inherit; width: 120px; padding: 4px 6px; border: 1p
 	.cvd-grid .plot-box { margin-bottom: 8px; }
 }
 dialog p { line-height: 1.45; max-width: 640px; }
+
+/* ---------- search, clickable rows, palette details ---------- */
+
+.tab .short, .dark-toggle .short, .table-tools .short { display: none; }
+
+.table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 8px; }
+.table-tools .hint { margin: 0; }
+#search {
+	font: inherit;
+	width: 260px;
+	max-width: 100%;
+	padding: 5px 8px;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	background: var(--bg);
+	color: var(--fg);
+}
+
+.c4a-table tbody tr[data-i] { cursor: pointer; }
+.c4a-table .mser { display: none; }
+
+.pal-dialog { width: min(640px, 95vw); }
+.pal-dialog h3 { margin: 4px 0 2px; font-size: 16px; }
+.pal-dialog h4 { font-size: 13px; margin: 16px 0 6px; }
+.pd-series { color: var(--muted); font-weight: 400; }
+.pd-desc { color: var(--muted); margin: 0 0 12px; }
+.pd-swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px 6px; }
+.pd-sw span { display: block; height: 40px; border-radius: 3px; }
+.pd-sw code { display: block; font-size: 11px; margin-top: 2px; user-select: all; }
+.pd-sw small { color: var(--muted); }
+.pd-scores { list-style: none; padding: 0; margin: 0; }
+.pd-scores li { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; line-height: 1.35; }
+.pd-icon { flex: 0 0 2.2em; text-align: center; font-size: 22px; line-height: 1; }
+.pd-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.settings-toggle { display: none; }
+
+/* ---------- phones ---------- */
+
+@media (max-width: 700px) {
+	/* one row of tabs that scrolls sideways, with short labels */
+	.topbar { flex-wrap: nowrap; padding-top: 4px; gap: 8px; }
+	.tabs {
+		flex: 1 1 auto;
+		min-width: 0;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.tabs::-webkit-scrollbar { display: none; }
+	.tab { white-space: nowrap; padding: 10px; }
+	.tab .long, .dark-toggle .long { display: none; }
+	.tab .short, .dark-toggle .short { display: inline; }
+	.dark-toggle { flex: none; white-space: nowrap; padding-bottom: 10px; }
+}
+
+@media (max-width: 600px) {
+	/* settings: only the key ones until "More settings" is tapped */
+	.settings-toggle {
+		display: block;
+		width: 100%;
+		text-align: left;
+		margin: 0 0 12px;
+		padding: 10px 12px !important;
+		background: var(--panel) !important;
+		font-weight: 700;
+	}
+	.settings-toggle .st-label::after { content: " ▾"; }
+	.settings-toggle[aria-expanded="true"] .st-label::after { content: " ▴"; }
+	.st-summary { display: block; font-weight: 400; color: var(--muted); font-size: 11px; margin-top: 2px; }
+	.st-summary:empty { display: none; }
+	.controls.collapsed > .col:not(.col-logo) > :not(.key) { display: none; }
+	.controls.collapsed > .col:not(.col-logo):not(:has(.key)) { display: none; }
+	.controls > .col { margin-bottom: 8px; }
+	.controls .key .radios label { display: inline-block; margin-right: 14px; }
+
+	.table-tools .long { display: none; }
+	.table-tools .short { display: inline; }
+	#search { width: 100%; font-size: 16px; } /* 16px: no automatic zoom on iOS */
+
+	/* compact table: name + colors; scores, series and references in the details dialog */
+	.c4a-table { width: 100%; table-layout: fixed; }
+	.c4a-table tr.groups, .c4a-table .sc, .c4a-table .series, .c4a-table .copy, .c4a-table .spacer { display: none; }
+	.c4a-table th.name { width: 30%; text-align: left; }
+	.c4a-table td.name { text-align: left; padding-right: 6px; overflow: hidden; text-overflow: ellipsis; }
+	.c4a-table .mser { display: block; font-size: 10px; color: var(--muted); line-height: 1.1; }
+	.c4a-table td.col { min-width: 0; max-width: none; }
+	.c4a-table td.col.ramp { min-width: 0 !important; }
+	.c4a-table tr.first:not(.last), .c4a-table tr.first.last { height: 2.4em; }
+
+	.pal-dialog { width: 100vw; max-width: 100vw; max-height: 92vh; margin: auto 0 0; border-radius: 10px 10px 0 0; }
+}
