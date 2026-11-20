@@ -73,23 +73,32 @@ html, body {
 
 /* ---------- controls ---------- */
 
+/* Wide: logo column (sized to the logo) + three control columns.
+   Narrower: CSS multi-column, so the browser balances the blocks over the
+   columns (logo + palette controls on the left, filters + display on the
+   right) instead of leaving a row gap under the shortest cell. */
 .controls {
 	display: grid;
-	grid-template-columns: repeat(4, minmax(0, 1fr));
+	grid-template-columns: minmax(150px, 240px) repeat(3, minmax(0, 1fr));
 	gap: 16px 24px;
 	margin-bottom: 16px;
 }
 .col-logo { display: flex; align-items: flex-start; justify-content: center; }
-.logo { height: 200px; }
+/* 240px = the logo's natural width; larger would blur it. */
+.logo { display: block; width: 100%; max-width: 240px; height: auto; }
 
 @media (max-width: 1000px) {
-	.controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-	.logo { height: 120px; }
+	.controls { display: block; column-count: 2; column-gap: 24px; }
+	.controls > .col { break-inside: avoid; margin-bottom: 16px; }
+	.col-logo { justify-content: center; }
+	.logo { max-width: 220px; }
 }
 @media (max-width: 600px) {
-	.controls { grid-template-columns: 1fr; }
-	.col-logo { display: none; }
+	.controls { column-count: 1; }
+	.logo { max-width: 160px; }
 }
+
+label.check.tritan { margin-top: 6px; }
 
 fieldset { border: none; padding: 0; margin: 0 0 10px; min-width: 0; }
 legend, .label {

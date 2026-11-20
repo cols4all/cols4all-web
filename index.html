@@ -27,7 +27,7 @@
 		<section id="tab-overview" class="tab-panel active">
 			<div class="controls">
 				<div class="col col-logo">
-					<img src="img/cols4all_logo.png" alt="cols4all logo" class="logo">
+					<img src="img/cols4all_logo.png" srcset="img/cols4all_logo.png 1x, img/cols4all_logo_2x.png 2x" width="240" height="276" alt="cols4all logo" class="logo">
 				</div>
 
 				<div class="col">
@@ -96,18 +96,19 @@
 							<div class="range-info"><span id="range-left">Left</span><span id="range-right">Right</span></div>
 						</div>
 					</div>
-				</div>
 
-				<div class="col">
 					<div class="field">
 						<label for="sort" class="label">Sort palettes</label>
 						<select id="sort"></select>
 					</div>
 					<label class="check"><input type="checkbox" id="sortRev"> Reverse sorting</label>
-					<label class="check"><input type="checkbox" id="include_tritan"> Include tritan in colorblind-friendly filter</label>
+				</div>
+
+				<div class="col">
 					<fieldset>
 						<legend>Filter</legend>
 						<div id="filters"></div>
+						<label class="check tritan"><input type="checkbox" id="include_tritan"> Include tritan in colorblind-friendly filter</label>
 					</fieldset>
 					<fieldset>
 						<legend>Palette series</legend>
