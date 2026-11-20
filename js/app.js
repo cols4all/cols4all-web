@@ -1,5 +1,7 @@
 import { prepTable, renderTable, sortChoices, iconFor, ICON_VARS } from "./table.js";
 import { simCVD } from "./colorops.js";
+import { prepareCustom, customRow, CUSTOM_TYPES } from "./score.js";
+import { setupCustom, toURL, fromURL } from "./custom.js";
 import { setupApplication, appDefaults } from "./tabs/application.js";
 import { setupContrast, contrastDefaults } from "./tabs/contrast.js";
 import { setupBlues, bluesDefaults } from "./tabs/blues.js";
@@ -31,6 +33,8 @@ async function loadJSON(name) {
 
 const meta = await loadJSON("meta");
 const allSeries = Object.keys(meta.series);
+// palettes entered by the user (not one of the series checkboxes: always shown)
+meta.series.custom = "Your own palettes (stored only in the link of this page)";
 
 // Implemented tabs (the others show a placeholder)
 const TABS = ["overview", "cvd", "hcl", "contrast", "blues", "naming", "app"];
@@ -57,7 +61,7 @@ const defaults = {
 	series: [...allSeries],
 	textformat: "none",
 	advanced: false,
-	dark: false,
+	dark: matchMedia("(prefers-color-scheme: dark)").matches, // follow the system setting by default
 	search: ""
 };
 const state = structuredClone(defaults);
@@ -68,6 +72,15 @@ const hclState = { ...hclDefaults };
 const namingState = { ...namingDefaults };
 const cvdState = { ...cvdDefaults };
 let tab = "overview";
+
+// Palettes entered by the user: input ({ type, name, colors }) and prepared (js/score.js)
+let customInput = [];
+let customPals = [];
+function setCustom(list) {
+	customInput = list;
+	customPals = list.map(prepareCustom);
+	customPals.forEach(p => (p.rows = {})); // cache of table rows per number of colors
+}
 
 // Selected palette, shared by all tabs except the Overview (tab_vals in c4a_gui)
 const sel = { name: null, cols: [], type: null, na: false, pals: [] };
@@ -121,8 +134,9 @@ function writeURL(push = false) {
 	if (state.series.length !== allSeries.length) p.set("series", state.series.join(","));
 	if (state.textformat !== "none") p.set("text", state.textformat);
 	if (state.advanced) p.set("scores", 1);
-	if (state.dark) p.set("dark", 1);
+	if (state.dark !== defaults.dark) p.set("dark", state.dark ? 1 : 0);
 	if (state.search) p.set("q", state.search);
+	for (const c of customInput) p.append("my", toURL(c));
 	if (tab !== "overview") {
 		p.set("tab", tab);
 		if (sel.name) p.set("pal", sel.name);
@@ -134,7 +148,7 @@ function writeURL(push = false) {
 		}
 	}
 	const q = p.toString();
-	const url = q ? "?" + q.replace(/%2C/g, ",") : location.pathname;
+	const url = q ? "?" + q.replace(/%2C/g, ",").replace(/%2E/g, ".") : location.pathname;
 	if (push && url !== location.search + (location.search ? "" : location.pathname)) history.pushState(null, "", url);
 	else history.replaceState(null, "", url);
 }
@@ -177,8 +191,10 @@ function readURL() {
 	if (p.has("series")) state.series = (p.get("series") || "").split(",").filter(s => allSeries.includes(s));
 	if (["hex", "RGB", "HCL"].includes(p.get("text"))) state.textformat = p.get("text");
 	state.advanced = p.has("scores");
-	state.dark = p.has("dark");
+	state.dark = p.has("dark") ? p.get("dark") !== "0" : defaults.dark;
 	state.search = (p.get("q") || "").slice(0, 100);
+	const seen = new Set();
+	setCustom(p.getAll("my").map(fromURL).filter(c => c && !seen.has(c.name) && seen.add(c.name)).slice(0, 20));
 	if (TABS.includes(p.get("tab"))) tab = p.get("tab");
 	urlPal = p.get("pal");
 	for (const [st, def, keys] of Object.values(TAB_SETTINGS)) {
@@ -199,7 +215,7 @@ function filterChoices(type) {
 
 // cols4all:::def_n(): slider range and value for cat/seq/div/cyc
 function defN(npref, type, data) {
-	const pals = Object.values(data.palettes).filter(p => state.series.includes(p.series));
+	const pals = Object.values(data.palettes).filter(p => state.series.includes(p.series) || p.series === "custom");
 	if (!pals.length) return null;
 	let nmin = Math.min(...pals.map(p => p.nmin));
 	let nmax = Math.max(...pals.map(p => (p.nmax === null ? Infinity : p.nmax)));
@@ -253,6 +269,7 @@ async function updateSliders(keepBiv = false) {
 		$("#mbiv").disabled = mdef === null || mdef === undefined; // bivs: rows = columns
 	} else {
 		const data = await loadJSON(type);
+		await injectCustom(data, null);
 		const ns = defN(state.n, type, data);
 		if (!ns) return;
 		state.n = ns.n;
@@ -343,9 +360,32 @@ $$(".pal-select").forEach(s => s.addEventListener("change", () => selectPalette(
 
 // ---------- render ----------
 
+// Add the custom palettes of this type to the data of the built-in palettes
+// (data/<type>.json): palette info, and the table rows for key (number of colors)
+let scoreCtx = null;
+async function injectCustom(data, key) {
+	for (const f of Object.keys(data.palettes)) if (f.startsWith("custom.")) delete data.palettes[f];
+	const mine = customPals.filter(p => p.type === data.type);
+	for (const p of mine) {
+		data.palettes["custom." + p.name] = { name: p.name, series: "custom", na: p.na, nmin: p.nmin, nmax: p.nmax, ndef: p.ndef,
+			mmin: 1, mmax: 1, mdef: 1, base: p.colors, space: "rgb" };
+	}
+	if (key === null) return;
+	const rows = (data.rows[key] || []).filter(r => !r.f.startsWith("custom."));
+	if (mine.length) {
+		scoreCtx ??= { nd: await loadJSON("naming"), fp: (await loadJSON("hcl")).fairness };
+		for (const p of mine) {
+			if (!(key in p.rows)) p.rows[key] = customRow(p, key, scoreCtx);
+			if (p.rows[key]) rows.push(p.rows[key]);
+		}
+	}
+	data.rows[key] = rows;
+}
+
 async function render() {
 	const type = type12();
 	const data = await loadJSON(type);
+	if (CUSTOM_TYPES.includes(type)) await injectCustom(data, isBiv() ? `${state.nbiv}x${state.mbiv}` : String(state.n));
 	const s = {
 		n: isBiv() ? state.nbiv : state.n,
 		m: isBiv() ? state.mbiv : 1,
@@ -357,7 +397,7 @@ async function render() {
 		coltemp: state.coltemp,
 		sort: state.sort,
 		sortRev: state.sortRev,
-		series: state.series,
+		series: customPals.length ? [...state.series, "custom"] : state.series,
 		filters: state.filters,
 		include_tritan: state.include_tritan,
 		show_scores: state.advanced,
@@ -365,8 +405,9 @@ async function render() {
 		search: state.search
 	};
 	const wrap = $("#table-wrap");
-	const p = state.series.length ? prepTable(data, s, meta) : null;
-	if (!state.series.length) {
+	const anySeries = state.series.length || customPals.some(c => c.type === type);
+	const p = anySeries ? prepTable(data, s, meta) : null;
+	if (!anySeries) {
 		wrap.innerHTML = `<div class="no-palettes"><b>No palette series selected.</b><ul><li>Select one or more palette series.</li></ul></div>`;
 	} else if (!p) {
 		wrap.innerHTML = state.search
@@ -377,6 +418,7 @@ async function render() {
 	}
 	current = p ? p.rows : null;
 	lastSettings = s;
+	updateTableTools();
 	updateSelection();
 	updateSummary();
 	if (tab !== "overview") renderTab();
@@ -416,7 +458,35 @@ $("#settings-toggle").addEventListener("click", () => {
 	if (!open) $("#controls").scrollIntoView({ block: "start" });
 });
 
-// ---------- search ----------
+// ---------- search, result count, reset ----------
+
+const filtered = () => !!state.search || state.filters.length > 0 || state.series.length !== allSeries.length;
+
+function updateTableTools() {
+	const n = current ? current.length : 0;
+	$("#result-count").textContent = current ? `${n} palette${n === 1 ? "" : "s"}` : "";
+	$("#reset-filters").hidden = !filtered();
+	checkTableFit();
+}
+
+$("#reset-filters").addEventListener("click", async () => {
+	state.search = "";
+	state.filters = [];
+	state.series = [...allSeries];
+	$("#search").value = "";
+	$$("#filters input").forEach(x => (x.checked = false));
+	$$("#series input").forEach(x => (x.checked = true));
+	if (!isBiv()) await updateSliders();
+	render();
+});
+
+// The table header sticks to the top of the window while scrolling. That only
+// works when the table fits in the page; wider tables scroll in their own box.
+function checkTableFit() {
+	const wrap = $("#table-wrap"), t = wrap.querySelector("table");
+	wrap.classList.toggle("fits", !t || t.offsetWidth <= wrap.clientWidth);
+}
+window.addEventListener("resize", checkTableFit);
 
 let searchTimer;
 $("#search").addEventListener("input", e => {
@@ -482,13 +552,24 @@ $$(".tab").forEach(btn => btn.addEventListener("click", () => {
 
 // ---------- events ----------
 
-$("#type1").addEventListener("change", async e => {
-	state.type1 = e.target.value;
+// type: cat, seq, ..., or a bivariate type (bivs, bivc, ...)
+async function setType1(v) {
+	if (v.startsWith("biv") && v !== "biv") {
+		state.type2 = v;
+		$("#type2").value = v;
+		v = "biv";
+	}
+	state.type1 = v;
+	$$('input[name="type1"]').forEach(x => (x.checked = x.value === v));
 	resetSortcolor();
 	syncVisibility();
 	buildFilters();
 	buildSort();
 	await updateSliders();
+}
+
+$("#type1").addEventListener("change", async e => {
+	await setType1(e.target.value);
 	render();
 });
 
@@ -661,14 +742,15 @@ function showDetail(i) {
 	const s = lastSettings;
 	const cols = state.na ? [...r.c, r.na] : [...r.c];
 	const shown = simCVD(cols, s.cvd, s.coltemp);
-	const swatches = cols.map((c, j) => `<div class="pd-sw"><span style="background:${shown[j]}"></span>` +
-		`<code>${escHTML(c)}</code>${state.na && j === cols.length - 1 ? "<small>missing</small>" : ""}</div>`).join("");
+	const swatches = cols.map((c, j) => `<button type="button" class="pd-sw" data-hex="${escHTML(c)}" title="Copy ${escHTML(c)}">` +
+		`<span style="background:${shown[j]}"></span><code>${escHTML(c)}</code>${state.na && j === cols.length - 1 ? "<small>missing</small>" : ""}</button>`).join("");
 	const items = detailScores(r, type12());
 	const simulated = s.cvd !== "none" || s.coltemp !== "6500";
 	$("#pal-detail").innerHTML = `
 		<h3 id="pal-title"><span class="pd-series">${escHTML(r.series)}</span> ${escHTML(r.name)}</h3>
 		<p class="pd-desc">${escHTML(meta.series[r.series] || "")}</p>
 		<div class="pd-swatches">${swatches}</div>
+		<p class="hint pd-hint">Click a color to copy its hex code.</p>
 		${simulated ? `<p class="hint">Colors are simulated (Color vision / Display temperature settings); the hex codes are the original colors.</p>` : ""}
 		<h4>Analyze this palette</h4>
 		<div class="pd-buttons">${ANALYSIS_TABS.map(([t, l]) => `<button type="button" data-tab="${t}">${l}</button>`).join("")}</div>
@@ -676,9 +758,14 @@ function showDetail(i) {
 		<div class="pd-buttons">
 			<button type="button" data-copy="js" title='["#111111", "#222222"]'>Colors (JS / Python)</button>
 			<button type="button" data-copy="r" title='c("#111111", "#222222")'>Colors (R)</button>
-			<button type="button" data-copy="cit">Reference (APA)</button>
-			<button type="button" data-copy="bib">BibTeX</button>
+			${r.series === "custom" ? "" : `<button type="button" data-copy="cit">Reference (APA)</button>
+			<button type="button" data-copy="bib">BibTeX</button>`}
 		</div>
+		${r.series === "custom" ? `<h4>Your palette</h4>
+		<div class="pd-buttons">
+			<button type="button" data-custom="edit">Edit</button>
+			<button type="button" data-custom="remove">Remove</button>
+		</div>` : ""}
 		${items.length ? `<h4>Scores</h4><ul class="pd-scores">${items.join("")}</ul>` : ""}`;
 	const dlg = $("#pal-dialog");
 	dlg.dataset.i = i;
@@ -705,6 +792,18 @@ $("#pal-dialog").addEventListener("click", e => {
 	const dlg = $("#pal-dialog");
 	if (e.target === dlg) { dlg.close(); return; } // click on the backdrop
 	const r = current?.[+dlg.dataset.i];
+	const sw = e.target.closest("button[data-hex]");
+	if (sw) {
+		navigator.clipboard.writeText(sw.dataset.hex).then(() => toast(`Copied ${sw.dataset.hex}`), () => toast("Could not copy to clipboard"));
+		return;
+	}
+	const cb = e.target.closest("button[data-custom]");
+	if (cb && r) {
+		dlg.close();
+		if (cb.dataset.custom === "edit") custom.open(r.name);
+		else removeCustom(r.name);
+		return;
+	}
 	const b = e.target.closest("button[data-copy], button[data-tab]");
 	if (!b || !r) return;
 	if (b.dataset.copy) { copyText(r, b.dataset.copy); return; }
@@ -713,6 +812,53 @@ $("#pal-dialog").addEventListener("click", e => {
 	showTab(b.dataset.tab, true);
 	window.scrollTo({ top: 0 });
 });
+
+// ---------- palettes entered by the user ----------
+
+// Show a custom palette in the table: its type, enough colors, and highlighted
+async function showCustom(name) {
+	const p = customPals.find(x => x.name === name);
+	if (!p) return;
+	if (type12() !== p.type) await setType1(p.type);
+	if (p.type === "cat") {
+		state.n = p.colors.length;
+		await updateSliders();
+	} else if (p.type === "bivc") {
+		// all columns (categories), as many rows as possible
+		state.nbiv = Math.min(p.ncol, +$("#nbiv").max);
+		await updateSliders(true);
+	}
+	await render();
+	writeURL(true);
+	const i = (current || []).findIndex(r => r.f === "custom." + name);
+	const tr = i >= 0 && $(`#table-wrap tbody tr[data-i="${i}"]`);
+	if (tr) {
+		tr.scrollIntoView({ block: "center" });
+		$$(`#table-wrap tbody tr[data-i="${i}"]`).forEach(x => x.classList.add("flash"));
+	} else if (i < 0) {
+		toast("Your palette is not shown: check the search and filters");
+	}
+}
+
+async function addCustom(input) {
+	setCustom([...customInput.filter(c => c.name !== input.name), input]);
+	await showCustom(input.name);
+}
+
+async function removeCustom(name) {
+	setCustom(customInput.filter(c => c.name !== name));
+	if (!isBiv()) await updateSliders();
+	await render();
+	writeURL(true);
+}
+
+const custom = setupCustom({
+	list: () => customInput,
+	add: addCustom,
+	remove: removeCustom,
+	select: showCustom
+});
+$("#add-custom").addEventListener("click", () => custom.open());
 
 // ---------- back / forward buttons ----------
 

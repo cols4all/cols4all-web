@@ -252,7 +252,7 @@ export function renderTable(p, s, meta) {
 	for (const q of qn) h += headerCell(meta, q, (meta.labels[q] || q).replace(/&nbsp;/g, ""), "sc");
 	if (continuous) h += `<th></th>`;
 	else for (let i = 1; i <= columns; i++) h += `<th class="colnum">${i}</th>`;
-	if (s.na) h += `<th class="spacer"></th><th class="colnum">Missings</th>`;
+	if (s.na) h += `<th class="spacer"></th><th class="colnum na" title="Color for missing values">Missing</th>`;
 	h += `<th colspan="4" class="copy" title="${esc(meta.headers.references?.tooltip || "")}">References</th></tr>`;
 
 	// Body
@@ -264,7 +264,7 @@ export function renderTable(p, s, meta) {
 		const paddedShown = shown.concat(Array(Math.max(0, tot - r.c.length)).fill(""));
 		for (let line = 0; line < nlines; line++) {
 			const first = line === 0, last = line === nlines - 1;
-			b += `<tr class="${first ? "first" : "cont"}${last ? " last" : ""}" data-i="${i}">`;
+			b += `<tr class="${first ? "first" : "cont"}${last ? " last" : ""}${r.series === "custom" ? " custom" : ""}" data-i="${i}">`;
 			if (first) {
 				const des = meta.series[r.series] || "";
 				b += `<td class="series" title="${esc(des)}">${esc(r.series)}</td><td class="name"><span class="mser">${esc(r.series)}</span>${esc(r.name)}</td>`;
@@ -283,10 +283,11 @@ export function renderTable(p, s, meta) {
 			}
 			if (continuous) b += gradientCell(shown);
 			else for (let j = 0; j < columns; j++) b += colorCell(padded[line * columns + j], paddedShown[line * columns + j]);
-			if (s.na) b += `<td class="spacer"></td>` + (first ? colorCell(r.na, sim([r.na])[0]) : "<td></td>");
+			if (s.na) b += `<td class="spacer"></td>` + (first ? colorCell(r.na, sim([r.na])[0], "col na") : `<td class="col na"></td>`);
 			if (first) {
-				b += `<td class="copy"><a href="#" data-copy="cit" data-i="${i}" title="Copy reference (APA style)">&#128214;</a></td>`
-					+ `<td class="copy"><a href="#" data-copy="bib" data-i="${i}" title="Copy BibTeX reference">Bib</a></td>`
+				b += (r.series === "custom" ? `<td class="copy"></td><td class="copy"></td>`
+					: `<td class="copy"><a href="#" data-copy="cit" data-i="${i}" title="Copy reference (APA style)">&#128214;</a></td>`
+					+ `<td class="copy"><a href="#" data-copy="bib" data-i="${i}" title="Copy BibTeX reference">Bib</a></td>`)
 					+ `<td class="copy"><a href="#" data-copy="js" data-i="${i}" title='Copy colors to standard format (e.g. used by JavaScript and Python): ["#111111", "#222222"]'>JS</a></td>`
 					+ `<td class="copy"><a href="#" data-copy="r" data-i="${i}" title='Copy colors to R: c("#111111", "#222222")'>R</a></td>`;
 			} else {

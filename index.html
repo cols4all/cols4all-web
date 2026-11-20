@@ -27,7 +27,7 @@
 		<section id="tab-overview" class="tab-panel active">
 			<div class="controls collapsed" id="controls">
 				<div class="col col-logo">
-					<img src="img/cols4all_logo.png" srcset="img/cols4all_logo.png 1x, img/cols4all_logo_2x.png 2x" width="240" height="276" alt="cols4all logo" class="logo">
+					<img src="img/cols4all_logo.svg" width="240" height="276" alt="cols4all logo" class="logo">
 				</div>
 
 				<div class="col">
@@ -170,6 +170,9 @@
 
 			<div class="table-tools">
 				<input type="search" id="search" placeholder="Search palette names" aria-label="Search palette names" autocomplete="off" spellcheck="false">
+				<span id="result-count" class="result-count" aria-live="polite"></span>
+				<button type="button" id="reset-filters" hidden>Reset filters</button>
+				<button type="button" id="add-custom" class="add-custom">＋ Test your own palette</button>
 				<span class="hint"><span class="long">Click a palette for details and analysis</span><span class="short">Tap a palette for details</span></span>
 			</div>
 
@@ -501,6 +504,53 @@
 <dialog id="pal-dialog" class="pal-dialog" aria-labelledby="pal-title">
 	<form method="dialog"><button class="close" aria-label="Close">×</button></form>
 	<div id="pal-detail"></div>
+</dialog>
+
+<dialog id="custom-dialog" class="custom-dialog" aria-labelledby="cp-title">
+	<form method="dialog"><button class="close" aria-label="Close">×</button></form>
+	<h3 id="cp-title">Test your own palette</h3>
+	<p class="hint">Your palette gets the same scores as the built-in palettes, appears in the table (series <i>custom</i>), and can be analyzed in all tabs.
+		It is not uploaded: it is only stored in the link of this page, so share or bookmark the link to keep it.</p>
+	<div class="field">
+		<label class="label" for="cp-colors">Colors</label>
+		<textarea id="cp-colors" rows="3" spellcheck="false" autocomplete="off"
+			placeholder='#E69F00, #56B4E9, #009E73 ... or c("#E69F00", ...) from R, a list from Python, or color names'></textarea>
+		<div id="cp-preview" class="cp-preview" aria-hidden="true"></div>
+		<p id="cp-msg" class="hint cp-msg" aria-live="polite"></p>
+	</div>
+	<div class="field two">
+		<div>
+			<label class="label" for="cp-type">Type</label>
+			<select id="cp-type">
+				<option value="cat">Categorical</option>
+				<option value="seq">Sequential</option>
+				<option value="div">Diverging</option>
+				<option value="cyc">Cyclic</option>
+				<option value="bivs">Bivariate (seq. x seq.)</option>
+				<option value="bivc">Bivariate (seq. x cat.)</option>
+				<option value="bivd">Bivariate (seq. x div.)</option>
+				<option value="bivg">Bivariate (seq. x desaturated)</option>
+			</select>
+		</div>
+		<div>
+			<label class="label" for="cp-name">Name</label>
+			<input type="text" id="cp-name" placeholder="my_palette" maxlength="40" autocomplete="off" spellcheck="false">
+		</div>
+	</div>
+	<div class="field" id="cp-ncol-wrap" hidden>
+		<label class="label" for="cp-ncol">Columns</label>
+		<input type="number" id="cp-ncol" min="2" max="10" step="1" value="3">
+		<p class="hint">Enter the colors row by row, from the top-left color. The rows are the second variable; the columns the first.</p>
+	</div>
+	<div class="cp-actions">
+		<button type="button" id="cp-example" class="link-btn">Try an example</button>
+		<button type="button" id="cp-add" class="primary" disabled>Add to table</button>
+	</div>
+	<p class="hint">Sequential, diverging, cyclic and bivariate palettes are interpolated to the number of colors, as in the R package.</p>
+	<div id="cp-list-wrap" hidden>
+		<h4>Your palettes</h4>
+		<ul id="cp-list" class="cp-list"></ul>
+	</div>
 </dialog>
 
 <dialog id="about-dialog">
